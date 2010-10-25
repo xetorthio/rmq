@@ -16,30 +16,28 @@ You can download the latests build at:
     http://github.com/xetorthio/rmq/downloads
 
 To use it just as a producer:
-
-  Producer p = new Producer(new Jedis("localhost"));
-  p.publish("some cool topic", "some cool message");
+	Producer p = new Producer(new Jedis("localhost"));
+	p.publish("some cool topic", "some cool message");
 
 To use it just as a consumer you can
 
 consume messages as they become available (this will block if there are no new messages)
-
-  Consumer c = new Consumer(new Jedis("localhost"));
-  c.consume("some cool topic", new Callback() {
-    public void onMessage(String topic, String message) {
-  	  //do something here with the message
-    }
-  });
+	Consumer c = new Consumer(new Jedis("localhost"));
+	c.consume("some cool topic", new Callback() {
+		public void onMessage(String topic, String message) {
+			//do something here with the message
+		}
+	});
 
 consume next waiting message and return right away
 
-  Consumer c = new Consumer(new Jedis("localhost"));
-  String message = c.consume("some cool topic");
+	Consumer c = new Consumer(new Jedis("localhost"));
+	String message = c.consume("some cool topic");
 
 read next message without removing it from the queue
 
-  Consumer c = new Consumer(new Jedis("localhost"));
-  String message = c.read("some cool topic");
+	Consumer c = new Consumer(new Jedis("localhost"));
+	String message = c.read("some cool topic");
 
 And you are done!
 
