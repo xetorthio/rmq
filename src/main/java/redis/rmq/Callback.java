@@ -1,5 +1,5 @@
 package redis.rmq;
 
 public interface Callback {
-    public void onMessage(String topic, String message);
+    public void onMessage(String message);
 }

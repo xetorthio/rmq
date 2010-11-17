@@ -20,47 +20,89 @@ public class ProducerTest extends Assert {
 
     @Test
     public void publishAndConsume() {
-        final String topic = "foo";
-        final String subscriber = "a subscriber";
-        final String message = "hello world!";
+        Producer p = new Producer(new Jedis("localhost"), "foo");
+        Consumer c = new Consumer(new Jedis("localhost"), "a subscriber", "foo");
 
-        Producer p = new Producer(new Jedis("localhost"));
-        Consumer c = new Consumer(new Jedis("localhost"), subscriber);
-
-        p.publish(topic, message);
-        assertEquals(message, c.consume(topic));
+        p.publish("hello world!");
+        assertEquals("hello world!", c.consume());
     }
 
     @Test
     public void publishAndRead() {
-        final String topic = "foo";
-        final String subscriber = "a subscriber";
-        final String message = "hello world!";
+        Producer p = new Producer(new Jedis("localhost"), "foo");
+        Consumer c = new Consumer(new Jedis("localhost"), "a subscriber", "foo");
 
-        Producer p = new Producer(new Jedis("localhost"));
-        Consumer c = new Consumer(new Jedis("localhost"), subscriber);
-
-        p.publish(topic, message);
-        assertEquals(message, c.read(topic));
-        assertEquals(message, c.read(topic));
+        p.publish("hello world!");
+        assertEquals("hello world!", c.read());
+        assertEquals("hello world!", c.read());
     }
 
     @Test
     public void unreadMessages() {
-        final String topic = "foo";
-        final String subscriber = "a subscriber";
-        final String message = "hello world!";
+        Producer p = new Producer(new Jedis("localhost"), "foo");
+        Consumer c = new Consumer(new Jedis("localhost"), "a subscriber", "foo");
 
-        Producer p = new Producer(new Jedis("localhost"));
-        Consumer c = new Consumer(new Jedis("localhost"), subscriber);
-
-        assertEquals(0, c.unreadMessages(topic));
-        p.publish(topic, message);
-        assertEquals(1, c.unreadMessages(topic));
-        p.publish(topic, message);
-        assertEquals(2, c.unreadMessages(topic));
-        c.consume(topic);
-        assertEquals(1, c.unreadMessages(topic));
+        assertEquals(0, c.unreadMessages());
+        p.publish("hello world!");
+        assertEquals(1, c.unreadMessages());
+        p.publish("hello world!");
+        assertEquals(2, c.unreadMessages());
+        c.consume();
+        assertEquals(1, c.unreadMessages());
     }
 
+    @Test
+    public void raceConditionsWhenPublishing() throws InterruptedException {
+        Producer slow = new SlowProducer(new Jedis("localhost"), "foo");
+        Consumer c = new Consumer(new Jedis("localhost"), "a subscriber", "foo");
+
+        slow.publish("a");
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                Producer fast = new Producer(new Jedis("localhost"), "foo");
+                fast.publish("b");
+            }
+        });
+        t.start();
+        t.join();
+
+        assertEquals("a", c.consume());
+        assertEquals("b", c.consume());
+    }
+
+    @Test
+    public void eraseOldMessages() {
+        Producer p = new Producer(new Jedis("localhost"), "foo");
+        Consumer c = new Consumer(new Jedis("localhost"), "a subscriber", "foo");
+
+        p.publish("a");
+        p.publish("b");
+
+        assertEquals("a", c.consume());
+
+        p.clean();
+
+        Consumer nc = new Consumer(new Jedis("localhost"), "new subscriber",
+                "foo");
+
+        assertEquals("b", c.consume());
+        assertEquals("b", nc.consume());
+        assertNull(c.consume());
+        assertNull(nc.consume());
+    }
+
+    class SlowProducer extends Producer {
+        public SlowProducer(Jedis jedis, String topic) {
+            super(jedis, topic);
+        }
+
+        protected Integer getNextMessageId() {
+            Integer nextMessageId = super.getNextMessageId();
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+            }
+            return nextMessageId;
+        }
+    }
 }

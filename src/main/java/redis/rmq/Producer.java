@@ -1,27 +1,51 @@
 package redis.rmq;
 
+import java.util.List;
+import java.util.Set;
+
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Transaction;
+import redis.clients.jedis.Tuple;
 
 public class Producer {
     private Jedis jedis;
+    private Nest topic;
+    private Nest subscriber;
 
-    public Producer(Jedis jedis) {
+    public Producer(final Jedis jedis, final String topic) {
         this.jedis = jedis;
+        this.topic = new Nest("topic:" + topic, jedis);
+        this.subscriber = new Nest(this.topic.cat("subscribers").key(), jedis);
     }
 
-    public void publish(final String topic, final String message) {
-        jedis.watch("topic:" + topic);
-        final String slastMessageId = jedis.get("topic:" + topic);
+    public void publish(final String message) {
+        List<Object> exec = null;
+        Integer lastMessageId = null;
+        do {
+            topic.watch();
+            lastMessageId = getNextMessageId();
+            Transaction trans = jedis.multi();
+            trans.set(topic.cat("message").cat(lastMessageId).key(), message);
+            trans.set(topic.key(), lastMessageId.toString());
+            exec = trans.exec();
+        } while (exec == null);
+        topic.publish(lastMessageId.toString());
+    }
+
+    protected Integer getNextMessageId() {
+        final String slastMessageId = topic.get();
         Integer lastMessageId = 0;
         if (slastMessageId != null) {
             lastMessageId = Integer.parseInt(slastMessageId);
         }
         lastMessageId++;
-        Transaction trans = jedis.multi();
-        trans.set("topic:" + topic + ":message:" + lastMessageId, message);
-        trans.incr("topic:" + topic);
-        trans.exec();
-        jedis.publish(topic, lastMessageId.toString());
+        return lastMessageId;
+    }
+
+    public void clean() {
+        Set<Tuple> zrangeWithScores = subscriber.zrangeWithScores(0, 1);
+        Tuple next = zrangeWithScores.iterator().next();
+        Integer lowest = (int) next.getScore();
+        topic.cat("message").cat(lowest).del();
     }
 }

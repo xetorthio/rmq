@@ -1,25 +1,25 @@
 package redis.rmq;
 
+import java.util.Set;
+
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPubSub;
+import redis.clients.jedis.Tuple;
 
 public class Consumer {
     private Jedis jedis;
-    private String subscriber;
+    private Nest topic;
+    private Nest subscriber;
+    private String id;
 
-    public Consumer(Jedis jedis, String subscriber) {
+    public Consumer(final Jedis jedis, final String id, final String topic) {
         this.jedis = jedis;
-        this.subscriber = subscriber;
+        this.topic = new Nest("topic:" + topic, jedis);
+        this.subscriber = new Nest(this.topic.cat("subscribers").key(), jedis);
+        this.id = id;
     }
 
-    public void consume(final String topic, Callback callback) {
-        while (true) {
-            readUntilEnd(topic, callback);
-            waitForMessages(topic);
-        }
-    }
-
-    private void waitForMessages(final String topic) {
+    private void waitForMessages() {
         jedis.subscribe(new JedisPubSub() {
             public void onUnsubscribe(String channel, int subscribedChannels) {
             }
@@ -40,56 +40,55 @@ public class Consumer {
             public void onMessage(String channel, String message) {
                 unsubscribe();
             }
-        }, topic);
+        }, topic.key());
     }
 
-    private void readUntilEnd(final String topic, Callback callback) {
-        String message = consume(topic);
-        while (message != null) {
+    public void consume(Callback callback) {
+        while (true) {
+            readUntilEnd(callback);
+            waitForMessages();
+        }
+    }
+
+    private void readUntilEnd(Callback callback) {
+        String message = null;
+        do {
+            message = read();
             if (message != null) {
-                callback.onMessage(topic, consume(topic));
+                callback.onMessage(message);
+                goNext();
             }
-            message = consume(topic);
-        }
+        } while (message != null);
     }
 
-    public String consume(final String topic) {
-        return getMessage(topic, true);
+    public String consume() {
+        String message = read();
+        goNext();
+        return message;
     }
 
-    private String getMessage(final String topic, boolean goNext) {
-        int topicSize = getTopicSize(topic);
-        int lastMessage = getLastReadMessage(topic);
-        if (lastMessage < topicSize) {
-            Integer newMessage = 0;
-            if (goNext) {
-                newMessage = jedis.incr("topic:" + topic + ":subscriber:"
-                        + subscriber);
+    private void goNext() {
+        subscriber.zincrby(1, id);
+    }
+
+    private int getLastReadMessage() {
+        Double lastMessageRead = subscriber.zscore(id);
+        if (lastMessageRead == null) {
+            Set<Tuple> zrangeWithScores = subscriber.zrangeWithScores(0, 1);
+            if (zrangeWithScores.iterator().hasNext()) {
+                Tuple next = zrangeWithScores.iterator().next();
+                Integer lowest = (int) next.getScore() - 1;
+                subscriber.zadd(lowest, id);
+                return lowest;
             } else {
-                String snewMessage = jedis.get("topic:" + topic
-                        + ":subscriber:" + subscriber);
-                if (snewMessage != null) {
-                    newMessage = Integer.parseInt(snewMessage);
-                }
-                newMessage++;
+                return 0;
             }
-            return jedis.get("topic:" + topic + ":message:" + newMessage);
         }
-        return null;
+        return lastMessageRead.intValue();
     }
 
-    private int getLastReadMessage(final String topic) {
-        String lastMessageRead = jedis.get("topic:" + topic + ":subscriber:"
-                + subscriber);
-        int lastMessage = 0;
-        if (lastMessageRead != null) {
-            lastMessage = Integer.valueOf(lastMessageRead);
-        }
-        return lastMessage;
-    }
-
-    private int getTopicSize(final String topic) {
-        String stopicSize = jedis.get("topic:" + topic);
+    private int getTopicSize() {
+        String stopicSize = topic.get();
         int topicSize = 0;
         if (stopicSize != null) {
             topicSize = Integer.valueOf(stopicSize);
@@ -97,11 +96,12 @@ public class Consumer {
         return topicSize;
     }
 
-    public String read(final String topic) {
-        return getMessage(topic, false);
+    public String read() {
+        int lastReadMessage = getLastReadMessage();
+        return topic.cat("message").cat(lastReadMessage + 1).get();
     }
 
-    public int unreadMessages(final String topic) {
-        return getTopicSize(topic) - getLastReadMessage(topic);
+    public int unreadMessages() {
+        return getTopicSize() - getLastReadMessage();
     }
 }
