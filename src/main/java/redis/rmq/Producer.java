@@ -19,17 +19,7 @@ public class Producer {
     }
 
     public void publish(final String message) {
-        List<Object> exec = null;
-        Integer lastMessageId = null;
-        do {
-            topic.watch();
-            lastMessageId = getNextMessageId();
-            Transaction trans = jedis.multi();
-            trans.set(topic.cat("message").cat(lastMessageId).key(), message);
-            trans.set(topic.key(), lastMessageId.toString());
-            exec = trans.exec();
-        } while (exec == null);
-        topic.publish(lastMessageId.toString());
+    	publish(message, 0);
     }
 
     protected Integer getNextMessageId() {
@@ -48,4 +38,27 @@ public class Producer {
         Integer lowest = (int) next.getScore();
         topic.cat("message").cat(lowest).del();
     }
+
+    
+    /**
+     * 
+     * @param message menssage
+     * @param seconds expiry time
+     */
+	public void publish(String message, int seconds) {
+		List<Object> exec = null;
+        Integer lastMessageId = null;
+        do {
+            topic.watch();
+            lastMessageId = getNextMessageId();
+            Transaction trans = jedis.multi();
+            String msgKey = topic.cat("message").cat(lastMessageId).key();
+            trans.set(msgKey, message);
+            trans.set(topic.key(), lastMessageId.toString());
+            if (seconds > 0)
+            	trans.expire(msgKey, seconds);
+            exec = trans.exec();
+        } while (exec == null);
+        topic.publish(lastMessageId.toString());		
+	}
 }
