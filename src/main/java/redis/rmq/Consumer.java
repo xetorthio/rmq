@@ -20,6 +20,9 @@ public class Consumer {
 
     private void waitForMessages() {	
     	try {
+			// TODO el otro metodo podria hacer q no se consuman mensajes por un
+			// tiempo si no llegan, de esta manera solo se esperan 500ms y se
+			// controla que haya mensajes.
 			Thread.sleep(500);
 		} catch (InterruptedException e) {}
     }
@@ -29,7 +32,8 @@ public class Consumer {
             String message = readUntilEnd();
             if (message != null)
             	callback.onMessage(message);
-            waitForMessages();
+            else
+            	waitForMessages();
         }
     }
 
