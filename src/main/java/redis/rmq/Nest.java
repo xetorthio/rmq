@@ -85,9 +85,9 @@ public class Nest {
         return del;
     }
 
-    public Long exists() {
+    public boolean exists() {
         Jedis jedis = getResource();
-        Long exists = jedis.exists(key());
+        Boolean exists = jedis.exists(key());
         returnResource(jedis);
         return exists;
     }
