@@ -19,7 +19,7 @@ public class Producer {
     }
 
     public void publish(final String message) {
-    	publish(message, 0);
+        publish(message, 0);
     }
 
     protected Integer getNextMessageId() {
@@ -39,14 +39,15 @@ public class Producer {
         topic.cat("message").cat(lowest).del();
     }
 
-    
     /**
      * 
-     * @param message menssage
-     * @param seconds expiry time
+     * @param message
+     *            menssage
+     * @param seconds
+     *            expiry time
      */
-	public void publish(String message, int seconds) {
-		List<Object> exec = null;
+    public void publish(String message, int seconds) {
+        List<Object> exec = null;
         Integer lastMessageId = null;
         do {
             topic.watch();
@@ -56,9 +57,8 @@ public class Producer {
             trans.set(msgKey, message);
             trans.set(topic.key(), lastMessageId.toString());
             if (seconds > 0)
-            	trans.expire(msgKey, seconds);
+                trans.expire(msgKey, seconds);
             exec = trans.exec();
         } while (exec == null);
-        topic.publish(lastMessageId.toString());		
-	}
+    }
 }

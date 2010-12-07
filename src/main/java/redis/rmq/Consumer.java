@@ -6,51 +6,50 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Tuple;
 
 public class Consumer {
-    private Jedis jedis;
     private Nest topic;
     private Nest subscriber;
     private String id;
 
     public Consumer(final Jedis jedis, final String id, final String topic) {
-        this.jedis = jedis;
         this.topic = new Nest("topic:" + topic, jedis);
         this.subscriber = new Nest(this.topic.cat("subscribers").key(), jedis);
         this.id = id;
     }
 
-    private void waitForMessages() {	
-    	try {
-			// TODO el otro metodo podria hacer q no se consuman mensajes por un
-			// tiempo si no llegan, de esta manera solo se esperan 500ms y se
-			// controla que haya mensajes.
-			Thread.sleep(500);
-		} catch (InterruptedException e) {}
+    private void waitForMessages() {
+        try {
+            // TODO el otro metodo podria hacer q no se consuman mensajes por un
+            // tiempo si no llegan, de esta manera solo se esperan 500ms y se
+            // controla que haya mensajes.
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+        }
     }
 
     public void consume(Callback callback) {
         while (true) {
             String message = readUntilEnd();
             if (message != null)
-            	callback.onMessage(message);
+                callback.onMessage(message);
             else
-            	waitForMessages();
+                waitForMessages();
         }
     }
 
-	public String consume() {
-		return readUntilEnd();
-	}
+    public String consume() {
+        return readUntilEnd();
+    }
 
-	private String readUntilEnd() {
-		while (unreadMessages() > 0) {
-			String message = read();
-			goNext();
-			if (message != null)
-				return message;
-		}
-		
-		return null;
-	}
+    private String readUntilEnd() {
+        while (unreadMessages() > 0) {
+            String message = read();
+            goNext();
+            if (message != null)
+                return message;
+        }
+
+        return null;
+    }
 
     private void goNext() {
         subscriber.zincrby(1, id);
