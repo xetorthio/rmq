@@ -3,7 +3,6 @@ package redis.rmq;
 import java.util.Set;
 
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPubSub;
 import redis.clients.jedis.Tuple;
 
 public class Consumer {
@@ -19,53 +18,39 @@ public class Consumer {
         this.id = id;
     }
 
-    private void waitForMessages() {
-        jedis.subscribe(new JedisPubSub() {
-            public void onUnsubscribe(String channel, int subscribedChannels) {
-            }
-
-            public void onSubscribe(String channel, int subscribedChannels) {
-            }
-
-            public void onPUnsubscribe(String pattern, int subscribedChannels) {
-            }
-
-            public void onPSubscribe(String pattern, int subscribedChannels) {
-            }
-
-            public void onPMessage(String pattern, String channel,
-                    String message) {
-            }
-
-            public void onMessage(String channel, String message) {
-                unsubscribe();
-            }
-        }, topic.key());
+    private void waitForMessages() {	
+    	try {
+			// TODO el otro metodo podria hacer q no se consuman mensajes por un
+			// tiempo si no llegan, de esta manera solo se esperan 500ms y se
+			// controla que haya mensajes.
+			Thread.sleep(500);
+		} catch (InterruptedException e) {}
     }
 
     public void consume(Callback callback) {
         while (true) {
-            readUntilEnd(callback);
-            waitForMessages();
+            String message = readUntilEnd();
+            if (message != null)
+            	callback.onMessage(message);
+            else
+            	waitForMessages();
         }
     }
 
-    private void readUntilEnd(Callback callback) {
-        String message = null;
-        do {
-            message = read();
-            if (message != null) {
-                callback.onMessage(message);
-                goNext();
-            }
-        } while (message != null);
-    }
+	public String consume() {
+		return readUntilEnd();
+	}
 
-    public String consume() {
-        String message = read();
-        goNext();
-        return message;
-    }
+	private String readUntilEnd() {
+		while (unreadMessages() > 0) {
+			String message = read();
+			goNext();
+			if (message != null)
+				return message;
+		}
+		
+		return null;
+	}
 
     private void goNext() {
         subscriber.zincrby(1, id);
