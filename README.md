@@ -24,7 +24,7 @@ To use it just as a consumer you can consume messages as they become available (
 
 	Consumer c = new Consumer(new Jedis("localhost"),"consumer identifier","some cool topic");
 	c.consume(new Callback() {
-		public void onMessage(String topic, String message) {
+		public void onMessage(String message) {
 			//do something here with the message
 		}
 	});
