@@ -16,12 +16,12 @@ You can download the latests build at:
     http://github.com/xetorthio/rmq/downloads
 
 To use it just as a producer:
+
 	Producer p = new Producer(new Jedis("localhost"),"some cool topic");
 	p.publish("some cool message");
 
-To use it just as a consumer you can
+To use it just as a consumer you can consume messages as they become available (this will block if there are no new messages):
 
-consume messages as they become available (this will block if there are no new messages)
 	Consumer c = new Consumer(new Jedis("localhost"),"consumer identifier","some cool topic");
 	c.consume(new Callback() {
 		public void onMessage(String topic, String message) {
@@ -29,12 +29,12 @@ consume messages as they become available (this will block if there are no new m
 		}
 	});
 
-consume next waiting message and return right away
+Consume next waiting message and return right away:
 
 	Consumer c = new Consumer(new Jedis("localhost"),"consumer identifier","some cool topic");
 	String message = c.consume();
 
-read next message without removing it from the queue
+Read next message without removing it from the queue:
 
 	Consumer c = new Consumer(new Jedis("localhost"),"consumer identifier","some cool topic");
 	String message = c.read();
